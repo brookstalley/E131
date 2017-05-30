@@ -1,7 +1,9 @@
 /*
 * E131.cpp
 *
-* Project: E131 - E.131 (sACN) library for Arduino
+* Project: E131 - E.131 (sACN) library for Electron
+* Copyright (c) 2017 AdmiralTriggerHappy
+* Dervived from work by:
 * Copyright (c) 2015 Shelby Merrick
 * http://www.forkineye.com
 *
