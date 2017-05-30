@@ -1,16 +1,12 @@
-E131 - E1.31 (sACN) library for Arduino
+E131 - E1.31 (sACN) library for Particle
 =======================================
-This library is to simplify the validation and handling of E1.31 sACN (DMX over Ethernet) traffic.  It supports both Unicast and Multicast configurations and exposes the full E1.31 packet to the user.  Currently, development is targeted for the ESP8266 WiFi module and traditional Ethernet shields.  
+This library is to simplify the validation and handling of E1.31 sACN (DMX over Ethernet) traffic.  It supports both Unicast and Multicast configurations and exposes the full E1.31 packet to the user.  Currently, development is targeted for the The electron from particle.io.  
 
 ### Supported Hardware
-- ESP8266
-- Arduino + Ethernet Shield (unicast until Arduino 1.66 is released)
+- Electron
 
 ### API / Usage
 #### Notes
-- Double-buffering of packet data is disabled on AVR architectures due to memory constraints.  Make sure to check the return value of ```parsePacket()``` as your buffer may be trashed if a bad packet made its way in.
-- Other architectures (i.e. ESP8266) double buffer the packets, so ```e131.data``` can always be considered pristine.  Double buffering can be disabled by defining ```NO_DOUBLE_BUFFER``` in ```E131.h```.
-- WiFi connection attempts will timeout after 10 seconds if a successful connection has not been established.  ```WIFI_CONNECT_TIMEOUT``` can be changed in ```E131.h```.
 
 #### Initializers
 These are to initialize the network stack and should be in the ```setup()``` function of your sketch.
