@@ -19,7 +19,7 @@ This initializer only sets up the UDP listener.  It is up to the user to setup t
 - ```int begin(const char *ssid, const char *passphrase)```: returns ```WiFi.status()```
 - ```int begin(const char *ssid, const char *passphrase, IPAddress ip, IPAddress netmask, IPAddress gateway, IPAddress dns)```: returns ```WiFi.status()```
 
-##### Multicast WiFi Initializers (ESP8266 Only)
+##### Multicast WiFi Initializers 
 - ```int beginMulticast(const char *ssid, const char *passphrase, uint16_t universe)```: returns ```WiFi.status()```
 - ```int beginMulticast(const char *ssid, const char *passphrase, uint16_t universe, IPAddress ip, IPAddress netmask, IPAddress gateway, IPAddress dns)```: returns ```WiFi.status()```
 
@@ -38,5 +38,4 @@ These are non-blocking handlers to be used in the ```loop()``` function of your 
 - ```e131_stats_t stats```: E1.31 Statistics
 
 ### Resources:
-- Latest code: http://github.com/forkineye/E131
-- Other Stuff: http://forkineye.com
+- Based on code From: http://github.com/forkineye/E131
