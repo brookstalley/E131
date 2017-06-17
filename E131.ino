@@ -268,7 +268,7 @@ void checkWiFiStatus()
         Serial.println(myIp);
 
         udp.begin(E131_DEFAULT_PORT);
-        udp.joinMulticast(myAddress);
+        udp.joinMulticast(multicast);
         
     }
     // WiFi connection was lost and has been for a while
