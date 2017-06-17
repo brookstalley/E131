@@ -1,11 +1,12 @@
 SYSTEM_THREAD(ENABLED); // This makes the system cloud connection run on a background thread so as to not delay our timing
 
 /*
- * E131.h
+ * E131.ino
  *
- * Project: E131 - E.131 (sACN) library for Arduino
- * Copyright (c) 2015 Shelby Merrick
- * http://www.forkineye.com
+ * Project: E131 - E.131 (sACN) library for Particle
+ 
+ * Copyright (c) 2017 AdmiralTriggerHappy
+ * Based in part on work by Shelby Merrick (http://www.forkineye.com)
  *
  *  This program is provided free for you to use in any way that you wish,
  *  subject to the laws and regulations where you are using it.  Due diligence
