@@ -1,12 +1,11 @@
 SYSTEM_THREAD(ENABLED); // This makes the system cloud connection run on a background thread so as to not delay our timing
 
 /*
- * E131.ino
+ * E131.h
  *
- * Project: E131 - E.131 (sACN) library for Particle
- 
- * Copyright (c) 2017 AdmiralTriggerHappy
- * Based in part on work by Shelby Merrick (http://www.forkineye.com)
+ * Project: E131 - E.131 (sACN) library for Arduino
+ * Copyright (c) 2015 Shelby Merrick
+ * http://www.forkineye.com
  *
  *  This program is provided free for you to use in any way that you wish,
  *  subject to the laws and regulations where you are using it.  Due diligence
@@ -157,6 +156,7 @@ int wiFiDisconnectTime = 0;
     IPAddress netmask(255,255,255,0);
     IPAddress gateway(192,168,1,1);
     IPAddress dns(192,168,1,1);
+    IPAddress multicast(239,255,0,1);
 
 IPAddress myIp;
 String myIpString = "";
@@ -187,8 +187,6 @@ void setup()
    pinMode(redLED, OUTPUT);
    pinMode(greenLED, OUTPUT);
 
-   // This is saying that when we ask the cloud for the function "led", it will employ the function ledToggle() from this app.
-
    // For good measure, let's also make sure both LEDs are off when we start:
    digitalWrite(blueLED, HIGH);
    digitalWrite(redLED, HIGH);
@@ -207,7 +205,7 @@ void setup()
     stats.packet_errors = 0;
 
     // Auto Wi-Fi Antenna Selection
-    WiFi.selectAntenna(ANT_AUTO); // ANT_INTERNAL ANT_EXTERNAL ANT_AUTO
+    WiFi.selectAntenna(ANT_INTERNAL); // ANT_INTERNAL ANT_EXTERNAL ANT_AUTO
 
     // Setup the Serial connection for debugging
     Serial.begin(115200);
@@ -231,7 +229,7 @@ void setup()
     // Setup the UDP connection
     waitUntil(WiFi.ready);
     udp.begin(E131_DEFAULT_PORT);
-    udp.joinMulticast(myAddress);
+    udp.joinMulticast(multicast);
 
 }
 
