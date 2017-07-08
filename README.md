@@ -11,8 +11,8 @@ This library is to simplify the validation and handling of E1.31 sACN (DMX over 
 #### Initializers
 These are to initialize the network stack and should be in the ```setup()``` function of your sketch.
 
-  void begin() Starts with with only 1 universe at number 1
-  void begin(uint16_t universes) specifies how many universes to monitor (Not currently finished)
+  ```void begin()``` Starts with with only 1 universe at number 1
+  ```void begin(uint16_t universes)``` specifies how many universes to monitor (Not currently finished)
 
 #### Loop Handlers
 These are non-blocking handlers to be used in the ```loop()``` function of your sketch.
