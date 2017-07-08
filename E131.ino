@@ -1,3 +1,4 @@
+#include "Particle.h"
 SYSTEM_THREAD(ENABLED); // This makes the system cloud connection run on a background thread so as to not delay our timing
 
 /*
@@ -97,10 +98,6 @@ typedef union
     uint8_t raw[E131_PACKET_SIZE];
 } e131_packet_t;
 
-// Don't change this unless you really know what you're doing!
-#define DEFAULT_UNIVERSE_SIZE 512
-#define MAXIMUM_UNIVERSE_ACCEPTED 128
-
 /* Status structure */
 typedef struct
 {
@@ -120,13 +117,6 @@ typedef enum
     ERROR_VECTOR_DMP
 } e131_error_t;
 
-/* E1.31 Listener Types */
-typedef enum
-{
-    E131_UNICAST,
-    E131_MULTICAST
-} e131_listen_t;
-
 /* Constants for packet validation */
 static const char ACN_ID[12] = { 0x41, 0x53, 0x43, 0x2d, 0x45, 0x31, 0x2e, 0x31, 0x37, 0x00, 0x00, 0x00 };
 static const uint32_t VECTOR_ROOT = 4;
@@ -135,53 +125,30 @@ static const uint8_t VECTOR_DMP = 2;
 
 uint8_t sequence; /* Sequence tracker */
 
-uint8_t *data; // Pointer to DMX channel data
-uint16_t universe; // DMX Universe of last valid packet
-e131_packet_t packetBuffer1; // Packet buffer
-e131_packet_t packetBuffer2; // Double buffer
-e131_packet_t *packetWorkingBuffer; // Pointer to working packet buffer
-e131_packet_t *packet; // Pointer to last valid packet
-e131_stats_t  stats; // Statistics tracker
 
-// An UDP instance to let us send and receive packets over UDP
-UDP udp;
-int lastDrawTime = 0;
-const int millisecondsBetweenDrawCalls = 20;
-
-bool previousWiFiReadiness = false;
-bool wiFiReadiness = false;
-int wiFiDisconnectTime = 0;
-
-    IPAddress myAddress(192,168,1,199);
-    IPAddress netmask(255,255,255,0);
-    IPAddress gateway(192,168,1,1);
-    IPAddress dns(192,168,1,1);
+const size_t UDP_BUFFER_SIZE = E131_PACKET_SIZE;
+const int UDP_PORT = 5568;
+int packetNumber = 1;
     IPAddress multicast(239,255,0,1);
 
-IPAddress myIp;
-String myIpString = "";
-String firmwareVersion = "0000000012";
-String systemVersion = "";
-String dmxData = "Blank";
-
-
-/* Diag functions */
-void dumpError(e131_error_t error);
-uint16_t parsePacket();
-e131_error_t validateE131Packet();
-
-// My functions
-void checkForUDPData();
-
+UDP udp;
+uint8_t udpBuffer[UDP_BUFFER_SIZE];
+uint8_t *data; // Pointer to DMX channel data
+e131_packet_t packetBuffer; // Packet buffer
+e131_packet_t *packet; // Pointer to last valid packet
+uint16_t universe; // DMX Universe of last valid packet
+e131_stats_t  stats; // Statistics tracker
 
  //Test Code
     int blueLED = D0;
     int greenLED = D1;
     int redLED = D2;
 
-void setup()
-{
-    //Test Code
+
+void setup() {
+	Serial.begin(115200);
+	
+	 //Test Code
     // Here's the pin configuration, same as last time
    pinMode(blueLED, OUTPUT);
    pinMode(redLED, OUTPUT);
@@ -194,138 +161,98 @@ void setup()
    
    //End Test Code
 
-    memset(packetBuffer1.raw, 0, sizeof(packetBuffer1.raw));
-    memset(packetBuffer2.raw, 0, sizeof(packetBuffer2.raw));
-    packet = &packetBuffer1;
-    packetWorkingBuffer = &packetBuffer2;
-
-    sequence = 0;
-    stats.num_packets = 0;
-    stats.sequence_errors = 0;
-    stats.packet_errors = 0;
-
-    // Auto Wi-Fi Antenna Selection
-    WiFi.selectAntenna(ANT_INTERNAL); // ANT_INTERNAL ANT_EXTERNAL ANT_AUTO
-
-    // Setup the Serial connection for debugging
-    Serial.begin(115200);
-
-    // Setup cloud variables and functions
-    systemVersion = System.version();
     
-    
-    WiFi.setStaticIP(myAddress, netmask, gateway, dns);
-
-    // now let's use the configured IP
-    WiFi.useStaticIP();
-    
-    
-    myIpString = String(String(myIp[0], DEC) + "." + String(myIp[2], DEC) + "." + String(myIp[2], DEC) + "." + String(myIp[3], DEC));
-    Particle.variable("localIP", myIpString);
-    Particle.variable("e131FVersion", firmwareVersion);
-    Particle.variable("sysVersion", systemVersion);
-    Particle.variable("DMX",dmxData);
-
-    // Setup the UDP connection
     waitUntil(WiFi.ready);
-    udp.begin(E131_DEFAULT_PORT);
-    udp.joinMulticast(multicast);
+	udp.begin(UDP_PORT);
+	udp.joinMulticast(multicast);
+	packet = &packetBuffer;
 
+	Serial.printlnf("server=%s:%d", WiFi.localIP().toString().c_str(), UDP_PORT);
 }
 
-void loop()
+void loop() {
+
+	parsePacket();
+	redBright(data[0]);
+       greenBright(data[1]);
+       blueBright(data[2]);
+
+}
+ int redBright(int brightness) {
+        brightness = 255 - brightness;
+        analogWrite(redLED,brightness);
+        return 1;
+    }
+    
+    int greenBright(int bright) {
+        bright = 255 - bright;
+        analogWrite(greenLED,bright);
+        return 1;
+    }
+    
+    int blueBright(int bright) {
+        bright = 255 - bright;
+        analogWrite(blueLED,bright);
+        return 1;
+}
+
+/* Packet validater */
+e131_error_t validateE131Packet()
 {
-    checkWiFiStatus();
-    //dmxData = "State0";
+    if (memcmp(packet->acn_id, ACN_ID, sizeof(packet->acn_id)) !=0)
+        return ERROR_ACN_ID;
+    if (htonl(packet->root_vector) != VECTOR_ROOT)
 
-   // checkForTestingMode();
+        return ERROR_VECTOR_ROOT;
+    if (htonl(packet->frame_vector) != VECTOR_FRAME)
 
-    checkForUDPData();
+        return ERROR_VECTOR_FRAME;
+    if (packet->dmp_vector != VECTOR_DMP)
 
-
-
+        return ERROR_VECTOR_DMP;
+    return ERROR_NONE;
 }
 
-void checkWiFiStatus()
+void dumpError(e131_error_t error)
 {
-    // Check to see if the WiFi connection was lost.
-    previousWiFiReadiness = wiFiReadiness;
-    wiFiReadiness = WiFi.ready();
-    // WiFi stopped. Release udp so we can reinit once it's ready again
-    if(wiFiReadiness == false && previousWiFiReadiness == true)
-    {
-        Serial.println("WiFi not ready");
-        udp.stop();
-        wiFiDisconnectTime = millis();
-    }
-    // WiFi is back. Open up udp port again
-    else if(wiFiReadiness == true && previousWiFiReadiness == false)
-    {
-        Serial.println("WiFi Back online");
-        myIp = WiFi.localIP();
-        myIpString = String(String(myIp[0], DEC) + "." + String(myIp[2], DEC) + "." + String(myIp[2], DEC) + "." + String(myIp[3], DEC));
-        Serial.print("ip:");
-        Serial.println(myIp);
-
-        udp.begin(E131_DEFAULT_PORT);
-        udp.joinMulticast(multicast);
-        
-    }
-    // WiFi connection was lost and has been for a while
-    else if(wiFiReadiness == false && previousWiFiReadiness == false && wiFiDisconnectTime > 0 && millis() - wiFiDisconnectTime > 5000)
-    {
-        wiFiDisconnectTime = 0;
-        // Reboot since we can't seem to find a WiFi connection
-        System.reset();
+    switch (error) {
+        case ERROR_ACN_ID:
+            Serial.print(F("INVALID PACKET ID: "));
+            for (uint8_t i = 0; i < sizeof(ACN_ID); i++)
+                Serial.print(packet->acn_id[i], HEX);
+            Serial.println("");
+            break;
+        case ERROR_PACKET_SIZE:
+            Serial.println(F("INVALID PACKET SIZE: "));
+            break;
+        case ERROR_VECTOR_ROOT:
+            Serial.print(F("INVALID ROOT VECTOR: 0x"));
+            Serial.println(htonl(packet->root_vector), HEX);
+            break;
+        case ERROR_VECTOR_FRAME:
+            Serial.print(F("INVALID FRAME VECTOR: 0x"));
+            Serial.println(htonl(packet->frame_vector), HEX);
+            break;
+        case ERROR_VECTOR_DMP:
+            Serial.print(F("INVALID DMP VECTOR: 0x"));
+            Serial.println(packet->dmp_vector, HEX);
     }
 }
 
-void checkForTestingMode()
-{
-   
-}
-
-void checkForUDPData()
-{
-   // dmxData = "State1";
-    // Parse a packet and update pixels
-    int dataSize = parsePacket();
-    if(dataSize > 0)
-    {
-        dmxData = "State2";
-       redBright(data[1]);
-       redBright(data[2]);
-       redBright(data[3]);
-                       for(int i=0; i < sizeof(data)/sizeof(data[0]);i++)
-    {
-        dmxData = dmxData + data[i];
-        dmxData = dmxData + ", ";
-    }
-
-    }
-}
-
-/* Main packet parser */
 uint16_t parsePacket()
 {
     e131_error_t error;
     uint16_t retval = 0;
-    
-    //dmxData = "State0";
-    
-    //udp.receivePacket(packetWorkingBuffer->raw, E131_PACKET_SIZE);
-     int size = udp.receivePacket(packetWorkingBuffer->raw, E131_PACKET_SIZE);
+
+     int size = udp.receivePacket(packet->raw, E131_PACKET_SIZE);
     if (size > 0)
     {
-        dmxData = "State1";
-        udp.read(packetWorkingBuffer->raw, size);
+    	packetNumber++;
         error = validateE131Packet();
+
         if (!error)
         {
-            e131_packet_t *swap = packet;
-            packet = packetWorkingBuffer;
-            packetWorkingBuffer = swap;
-            //printUDPData(packetWorkingBuffer->raw, size);
+            
             universe = htons(packet->universe);
             data = packet->property_values;
 
@@ -344,75 +271,8 @@ uint16_t parsePacket()
             
         }
     }
-    else
-    {
-        dmxData = "Error0";
-    }
-    
+IPAddress remoteAddr = udp.remoteIP();
+    Serial.printlnf("## packet=%d addr=%s data= %d",packetNumber, remoteAddr.toString().c_str(), data[0]);
     return retval;
 }
 
-/* Packet validater */
-e131_error_t validateE131Packet()
-{
-    if (memcmp(packetWorkingBuffer->acn_id, ACN_ID, sizeof(packetWorkingBuffer->acn_id)) !=0)
-     dmxData = "Error1";
-        dmxData = packetWorkingBuffer->acn_id;
-        return ERROR_ACN_ID;
-    if (htonl(packetWorkingBuffer->root_vector) != VECTOR_ROOT)
-    dmxData = "Error2";
-        return ERROR_VECTOR_ROOT;
-    if (htonl(packetWorkingBuffer->frame_vector) != VECTOR_FRAME)
-    dmxData = "Error3";
-        return ERROR_VECTOR_FRAME;
-    if (packetWorkingBuffer->dmp_vector != VECTOR_DMP)
-        dmxData = "Error4";
-        return ERROR_VECTOR_DMP;
-    return ERROR_NONE;
-}
-
-void dumpError(e131_error_t error)
-{
-    switch (error) {
-        case ERROR_ACN_ID:
-            Serial.print(F("INVALID PACKET ID: "));
-            for (uint8_t i = 0; i < sizeof(ACN_ID); i++)
-                Serial.print(packetWorkingBuffer->acn_id[i], HEX);
-            Serial.println("");
-            break;
-        case ERROR_PACKET_SIZE:
-            Serial.println(F("INVALID PACKET SIZE: "));
-            break;
-        case ERROR_VECTOR_ROOT:
-            Serial.print(F("INVALID ROOT VECTOR: 0x"));
-            Serial.println(htonl(packetWorkingBuffer->root_vector), HEX);
-            break;
-        case ERROR_VECTOR_FRAME:
-            Serial.print(F("INVALID FRAME VECTOR: 0x"));
-            Serial.println(htonl(packetWorkingBuffer->frame_vector), HEX);
-            break;
-        case ERROR_VECTOR_DMP:
-            Serial.print(F("INVALID DMP VECTOR: 0x"));
-            Serial.println(packetWorkingBuffer->dmp_vector, HEX);
-    }
-}
-
-//Test Code
-
-    int redBright(int brightness) {
-        brightness = 255 - brightness;
-        analogWrite(redLED,brightness);
-        return 1;
-    }
-    
-    int greenBright(int bright) {
-        bright = 255 - bright;
-        analogWrite(greenLED,bright);
-        return 1;
-    }
-    
-    int blueBright(int bright) {
-        bright = 255 - bright;
-        analogWrite(blueLED,bright);
-        return 1;
-    }
