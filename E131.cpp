@@ -1,7 +1,5 @@
 /*
-* E131.cpp
-*
-* Project: E131 - E.131 (sACN) library for Electron
+* Project: E131 - E.131 (sACN) library for Particle Devices
 * Copyright (c) 2017 AdmiralTriggerHappy
 * Dervived from work by:
 * Copyright (c) 2015 Shelby Merrick
@@ -17,248 +15,68 @@
 *  damages in connection with, or arising out of, the furnishing, performance
 *  or use of these programs.
 *
-*/
+
+ */
 
 #include "E131.h"
-#include <string.h>
 
-/* E1.17 ACN Packet Identifier */
-#ifdef ARDUINO_ARCH_AVR
-const PROGMEM byte E131::ACN_ID[12] = { 0x41, 0x53, 0x43, 0x2d, 0x45, 0x31, 0x2e, 0x31, 0x37, 0x00, 0x00, 0x00 };
-#else
-const byte E131::ACN_ID[12] = { 0x41, 0x53, 0x43, 0x2d, 0x45, 0x31, 0x2e, 0x31, 0x37, 0x00, 0x00, 0x00 };
-#endif
+uint8_t sequence; /* Sequence tracker */
+UDP udp;
 
-/* Constructor */
-E131::E131() {
-#ifdef NO_DOUBLE_BUFFER
-    memset(pbuff1.raw, 0, sizeof(pbuff1.raw));
-    packet = &pbuff1;
-    pwbuff = packet;
-#else
-    memset(pbuff1.raw, 0, sizeof(pbuff1.raw));
-    memset(pbuff2.raw, 0, sizeof(pbuff2.raw));
-    packet = &pbuff1;
-    pwbuff = &pbuff2;
-#endif
-
-    sequence = 0;
-    stats.num_packets = 0;
-    stats.sequence_errors = 0;
-    stats.packet_errors = 0;
+/**
+ * Constructor.
+ */
+E131::E131()
+{
+  // be sure not to call anything that requires hardware be initialized here, put those in begin()
 }
 
-void E131::initUnicast() {
-    delay(100);
-    udp.begin(E131_DEFAULT_PORT);
-    if (Serial) {
-        Serial.print(F("- Unicast port: "));
-        Serial.println(E131_DEFAULT_PORT);
-    }
+/**
+ * Example method.
+ */
+void E131::begin()
+{
+    // initialize hardware
+	IPAddress multicast(239,255,0,1);
+	udp.begin(E131_DEFAULT_PORT);
+	udp.joinMulticast(multicast);
+    Serial.println("called begin");
 }
 
-void E131::initMulticast(uint16_t universe, uint8_t n) {
-    delay(100);
-    IPAddress address = IPAddress(239, 255, ((universe >> 8) & 0xff),
-            ((universe >> 0) & 0xff));
-#ifdef INT_ESP8266
-    ip_addr_t ifaddr;
-    ip_addr_t multicast_addr;
-
-    ifaddr.addr = static_cast<uint32_t>(WiFi.localIP());
-    for (uint8_t i = 1; i < n; i++) {
-        multicast_addr.addr = static_cast<uint32_t>(IPAddress(239, 255,
-                (((universe + i) >> 8) & 0xff), (((universe + i) >> 0)
-                & 0xff)));
-        igmp_joingroup(&ifaddr, &multicast_addr);
-    }
-
-    udp.beginMulticast(WiFi.localIP(), address, E131_DEFAULT_PORT);
-#endif
-    if (Serial) {
-        Serial.print(F("- Universe: "));
-        Serial.println(universe);
-        Serial.print(F("- Multicast address: "));
-        Serial.println(address);
-    }
+void E131::begin(uint16_t universeIP)
+{
+    // initialize hardware
+	IPAddress multicast(239,255,((universeIP >> 8) & 0xff),((universeIP >> 0) & 0xff));
+	udp.begin(E131_DEFAULT_PORT);
+	udp.joinMulticast(multicast);
+	packet = &packetBuffer;
+    Serial.println("called begin");
 }
 
-/****** START - Wireless ifdef block ******/
-#if defined (INT_ESP8266) || defined (INT_WIFI)
+/* Packet validater */
+e131_error_t E131::validateE131Packet()
+{
+    if (memcmp(packet->acn_id, ACN_ID, sizeof(packet->acn_id)) !=0)
+        return ERROR_ACN_ID;
+    if (htonl(packet->root_vector) != VECTOR_ROOT)
 
-/* WiFi Initialization */
-int E131::initWiFi(const char *ssid, const char *passphrase) {
-    /* Switch to station mode and disconnect just in case */
-    WiFi.mode(WIFI_STA);
-    WiFi.disconnect();
-    delay(100);
+        return ERROR_VECTOR_ROOT;
+    if (htonl(packet->frame_vector) != VECTOR_FRAME)
 
-    if (Serial) {
-        Serial.println("");
-        Serial.print(F("Connecting to "));
-        Serial.print(ssid);
-    }
+        return ERROR_VECTOR_FRAME;
+    if (packet->dmp_vector != VECTOR_DMP)
 
-    if (passphrase != NULL)
-        WiFi.begin(ssid, passphrase);
-    else
-        WiFi.begin(ssid);
-
-    uint32_t timeout = millis();
-    uint8_t retval = 1;
-    while (WiFi.status() != WL_CONNECTED) {
-        delay(500);
-        if (Serial)
-            Serial.print(".");
-        if (millis() - timeout > WIFI_CONNECT_TIMEOUT) {
-            retval = 0;
-            if (Serial) {
-                Serial.println("");
-                Serial.println(F("*** Failed to connect ***"));
-            }
-            break;
-        }
-    }
-
-    return retval;
+        return ERROR_VECTOR_DMP;
+    return ERROR_NONE;
 }
 
-void E131::begin(e131_listen_t type, uint16_t universe, uint8_t n) {
-    if (type == E131_UNICAST)
-        initUnicast();
-    if (type == E131_MULTICAST)
-        initMulticast(universe, n);
-}
-
-int E131::begin(const char *ssid, const char *passphrase) {
-    if (initWiFi(ssid, passphrase)) {
-        if (Serial) {
-            Serial.println("");
-            Serial.print(F("Connected DHCP with IP: "));
-            Serial.println(WiFi.localIP());
-        }
-        initUnicast();
-    }
-    return WiFi.status();
-}
-
-int E131::begin(const char *ssid, const char *passphrase,
-        IPAddress ip, IPAddress netmask, IPAddress gateway, IPAddress dns) {
-    if (initWiFi(ssid, passphrase)) {
-        WiFi.config(ip, gateway, netmask, dns);
-        if (Serial) {
-            Serial.println("");
-            Serial.print(F("Connected with Static IP: "));
-            Serial.println(WiFi.localIP());
-        }
-        initUnicast();
-    }
-    return WiFi.status();
-}
-
-#endif
-/****** END - Wireless ifdef block ******/
-
-/****** START - ESP8266 ifdef block ******/
-#if defined (INT_ESP8266)
-int E131::beginMulticast(const char *ssid, const char *passphrase,
-        uint16_t universe, uint8_t n) {
-    if (initWiFi(ssid, passphrase)) {
-        if (Serial) {
-            Serial.println("");
-            Serial.print(F("Connected DHCP with IP: "));
-            Serial.println(WiFi.localIP());
-        }
-        initMulticast(universe, n);
-    }
-    return WiFi.status();
-}
-
-int E131::beginMulticast(const char *ssid, const char *passphrase,
-        uint16_t universe, IPAddress ip, IPAddress netmask,
-        IPAddress gateway, IPAddress dns, uint8_t n) {
-    if (initWiFi(ssid, passphrase)) {
-        WiFi.config(ip, dns, gateway, netmask);
-        if (Serial) {
-            Serial.println("");
-            Serial.print(F("Connected with Static IP: "));
-            Serial.println(WiFi.localIP());
-        }
-        initMulticast(universe, n);
-    }
-    return WiFi.status();
-}
-#endif
-/****** END - ESP8266 ifdef block ******/
-
-/****** START - Ethernet ifdef block ******/
-#if defined (INT_ETHERNET)
-
-/* Unicast Ethernet Initializers */
-int E131::begin(uint8_t *mac) {
-    int retval = 0;
-
-    if (Serial) {
-        Serial.println("");
-        Serial.println(F("Requesting Address via DHCP"));
-        Serial.print(F("- MAC: "));
-        for (int i = 0; i < 6; i++)
-            Serial.print(mac[i], HEX);
-        Serial.println("");
-    }
-
-    retval = Ethernet.begin(mac);
-
-    if (Serial) {
-        if (retval) {
-            Serial.print(F("- IP Address: "));
-            Serial.println(Ethernet.localIP());
-        } else {
-            Serial.println(F("** DHCP FAILED"));
-        }
-    }
-
-    if (retval)
-        initUnicast();
-
-    return retval;
-}
-
-void E131::begin(uint8_t *mac, IPAddress ip, IPAddress netmask,
-        IPAddress gateway, IPAddress dns) {
-    Ethernet.begin(mac, ip, dns, gateway, netmask);
-    if (Serial) {
-        Serial.println("");
-        Serial.println(F("Static Configuration"));
-        Serial.println(F("- MAC: "));
-        for (int i = 0; i < 6; i++)
-            Serial.print(mac[i], HEX);
-        Serial.print(F("- IP Address: "));
-        Serial.println(Ethernet.localIP());
-    }
-
-    initUnicast();
-}
-
-/* Multicast Ethernet Initializers */
-int E131::beginMulticast(uint8_t *mac, uint16_t universe, uint8_t n) {
-    //TODO: Add ethernet multicast support
-}
-
-void E131::beginMulticast(uint8_t *mac, uint16_t universe,
-        IPAddress ip, IPAddress netmask, IPAddress gateway,
-        IPAddress dns, uint8_t n) {
-    //TODO: Add ethernet multicast support
-}
-#endif
-/****** END - Ethernet ifdef block ******/
-
-void E131::dumpError(e131_error_t error) {
+void E131::dumpError(e131_error_t error)
+{
     switch (error) {
         case ERROR_ACN_ID:
             Serial.print(F("INVALID PACKET ID: "));
-            for (int i = 0; i < sizeof(ACN_ID); i++)
-                Serial.print(pwbuff->acn_id[i], HEX);
+            for (uint8_t i = 0; i < sizeof(ACN_ID); i++)
+                Serial.print(packet->acn_id[i], HEX);
             Serial.println("");
             break;
         case ERROR_PACKET_SIZE:
@@ -266,14 +84,50 @@ void E131::dumpError(e131_error_t error) {
             break;
         case ERROR_VECTOR_ROOT:
             Serial.print(F("INVALID ROOT VECTOR: 0x"));
-            Serial.println(htonl(pwbuff->root_vector), HEX);
+            Serial.println(htonl(packet->root_vector), HEX);
             break;
         case ERROR_VECTOR_FRAME:
             Serial.print(F("INVALID FRAME VECTOR: 0x"));
-            Serial.println(htonl(pwbuff->frame_vector), HEX);
+            Serial.println(htonl(packet->frame_vector), HEX);
             break;
         case ERROR_VECTOR_DMP:
             Serial.print(F("INVALID DMP VECTOR: 0x"));
-            Serial.println(pwbuff->dmp_vector, HEX);
+            Serial.println(packet->dmp_vector, HEX);
     }
 }
+
+uint16_t E131::parsePacket()
+{
+    e131_error_t error;
+    uint16_t retval = 0;
+
+     int size = udp.receivePacket(packet->raw, E131_PACKET_SIZE);
+    if (size > 0)
+    {
+        error = validateE131Packet();
+
+        if (!error)
+        {
+            universe = htons(packet->universe);
+            data = packet->property_values;
+
+            retval = htons(packet->property_value_count) - 1;
+            if (packet->sequence_number != sequence++)
+            {
+                stats.sequence_errors++;
+                sequence = packet->sequence_number + 1;
+            }
+            stats.num_packets++;
+        }
+        else
+        {
+            dumpError(error);
+            stats.packet_errors++;
+            
+        }
+    }
+IPAddress remoteAddr = udp.remoteIP();
+    Serial.printlnf("## addr=%s data= %d", remoteAddr.toString().c_str(), data[0]);
+    return retval;
+}
+
