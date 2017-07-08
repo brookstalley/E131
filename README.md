@@ -7,6 +7,7 @@ This library is to simplify the validation and handling of E1.31 sACN (DMX over 
 
 ### API / Usage
 #### Notes
+There is a stand alone version (E131.ino) in the repo currently which is fully fuctional but the library version is not currently working.
 
 #### Initializers
 These are to initialize the network stack and should be in the ```setup()``` function of your sketch.
