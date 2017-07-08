@@ -1,6 +1,6 @@
 E131 - E1.31 (sACN) library for Particle
 =======================================
-This library is to simplify the validation and handling of E1.31 sACN (DMX over Ethernet) traffic.  It supports both Unicast and Multicast configurations and exposes the full E1.31 packet to the user.  Currently, development is targeted for the The electron from particle.io.  
+This library is to simplify the validation and handling of E1.31 sACN (DMX over Ethernet) traffic.  It supports both Unicast and Multicast configurations and exposes the full E1.31 packet to the user.  Currently, development is targeted for the The Photon from particle.io.  
 
 ### Supported Hardware
 - Particle Photon
