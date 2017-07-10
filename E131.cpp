@@ -17,11 +17,12 @@
 *
 
  */
-
 #include "E131.h"
 
 uint8_t sequence; /* Sequence tracker */
+
 UDP udp;
+
 
 /**
  * Constructor.
@@ -40,13 +41,14 @@ void E131::begin()
 	IPAddress multicast(239,255,0,1);
 	udp.begin(E131_DEFAULT_PORT);
 	udp.joinMulticast(multicast);
+	packet = &packetBuffer;
     Serial.println("called begin");
 }
 
-void E131::begin(uint16_t universeIP)
+void E131::begin(uint16_t _universe)
 {
     // initialize hardware
-	IPAddress multicast(239,255,((universeIP >> 8) & 0xff),((universeIP >> 0) & 0xff));
+	IPAddress multicast(239,255,((_universe >> 8) & 0xff),((_universe >> 0) & 0xff));
 	udp.begin(E131_DEFAULT_PORT);
 	udp.joinMulticast(multicast);
 	packet = &packetBuffer;
@@ -126,8 +128,6 @@ uint16_t E131::parsePacket()
             
         }
     }
-IPAddress remoteAddr = udp.remoteIP();
-    Serial.printlnf("## addr=%s data= %d", remoteAddr.toString().c_str(), data[0]);
+
     return retval;
 }
-
