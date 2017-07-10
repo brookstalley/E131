@@ -103,8 +103,8 @@ typedef union
         uint16_t first_address;
         uint16_t address_increment;
         uint16_t property_value_count;
-        uint8_t unknownValue;
-        uint8_t  property_values[513];
+        uint8_t startCode;
+        uint8_t  property_values[512];
     } __attribute__((packed));
 
     uint8_t raw[E131_PACKET_SIZE];
