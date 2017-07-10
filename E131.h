@@ -1,7 +1,7 @@
 /*
 * E131.h
 *
-* Project: E131 - E.131 (sACN) library for Electron
+* Project: E131 - E.131 (sACN) library for Photon
 * Copyright (c) 2017 AdmiralTriggerHappy
 * Derived from work from: 
 * Copyright (c) 2015 Shelby Merrick
