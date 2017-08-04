@@ -121,7 +121,7 @@ typedef enum
 } e131_error_t;
 
 /* Constants for packet validation */
-static const char ACN_ID[12]       = { 0x41, 0x53, 0x43, 0x2d, 0x45, 0x31, 0x2e, 0x31, 0x37, 0x00, 0x00, 0x00 };
+static const char     ACN_ID[12]   = { 0x41, 0x53, 0x43, 0x2d, 0x45, 0x31, 0x2e, 0x31, 0x37, 0x00, 0x00, 0x00 };
 static const uint32_t VECTOR_ROOT  = 4;
 static const uint32_t VECTOR_FRAME = 2;
 static const uint8_t  VECTOR_DMP   = 2;
@@ -131,9 +131,9 @@ class E131
 {
 public:
 
-  uint8_t *data;      // Pointer to DMX channel data
-  uint16_t universe;  // DMX Universe of last valid packet
-  e131_stats_t stats; // Statistics tracker
+  uint8_t     *data;     // Pointer to DMX channel data
+  uint16_t     universe; // DMX Universe of last valid packet
+  e131_stats_t stats;    // Statistics tracker
 
   /**
    * Constructor
@@ -149,6 +149,7 @@ private:
   e131_packet_t  packetBuffer; // Packet buffer
   e131_packet_t *packet;       // Pointer to last valid packet
   e131_error_t validateE131Packet();
+  uint16_t _udpPort;
   void         dumpError(e131_error_t error);
 };
 
